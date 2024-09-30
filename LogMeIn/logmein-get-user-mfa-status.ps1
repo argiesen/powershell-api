@@ -10,24 +10,11 @@ param(
     [string]$ApiPsk
 )
 
-# Update certificate trust policy to allow untrusted certificates
-add-type @"
-    using System.Net;
-    using System.Security.Cryptography.X509Certificates;
-    public class TrustAllCertsPolicy : ICertificatePolicy {
-        public bool CheckValidationResult(
-            ServicePoint srvPoint, X509Certificate certificate,
-            WebRequest request, int certificateProblem) {
-            return true;
-        }
-    }
-"@
-[System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy
-
 # Useful API documentation: https://developer.goto.com/pdf/Central_Developer_Guide.pdf
 
 # Validate authentication with CompanyID and API PSK
-$authBase64 = [Convert]::ToBase64String($CompanyId + ":" + $ApiPsk)
+$authString = [System.Text.Encoding]::Unicode.GetBytes($CompanyId + ":" + $ApiPsk)
+$authBase64 = [Convert]::ToBase64String($authString)
 
 $url = "https://secure.logmein.com/public-api/v1/authentication"
 try {
@@ -37,11 +24,11 @@ try {
 
     if ($authResponseJson.success -ne "true"){
         Write-Host "Authentication failed" -ForegroundColor Red
-        break;
+        return;
     }
 }catch{
     Write-Host "Error making request (URL: $url): $($Error.Exception.Message)" -ForegroundColor Red
-    break;
+    return;
 }
 
 # Get users list
@@ -52,5 +39,7 @@ try {
     $usersResponseJson = ($usersResponse).Content | ConvertFrom-Json
 }catch{
     Write-Host "Error making request (URL: $url): $($Error.Exception.Message)" -ForegroundColor Red
-    break;
+    return;
 }
+
+$usersResponseJson | Format-Table id,email,firstName,lastName,lastLoginDate
